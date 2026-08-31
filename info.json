@@ -1,0 +1,9 @@
+{
+  "name": "Two-WayInserter",
+  "version": "0.0.1",
+  "title": "Two-Way Inserter",
+  "author": "yuna495",
+  "description": "Allows inserters to carry items in both directions, using both the forward and return trip.",
+  "factorio_version": "2.0",
+  "dependencies": ["base >= 2.0.0", "? Smart_Inserters"]
+}

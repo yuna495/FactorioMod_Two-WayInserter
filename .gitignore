@@ -1,0 +1,10 @@
+*.zip
+.codex-test-mods/
+.codex-test-output/
+Two-WayInserter_*/
+Two-WayInserter_*.zip
+MODポータル用
+AGENTS.md
+
+reference
+reference.md
