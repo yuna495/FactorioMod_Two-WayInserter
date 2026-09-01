@@ -39,7 +39,10 @@ function state.ensure(entity, tick)
     record.primary.base_position = record.primary.base_position or profiles.copy_position(entity.position)
     record.primary.direction = record.primary.direction or record.forward and record.forward.direction or entity.direction
     record.reverse = record.reverse or profiles.new_reverse_from_forward(record.forward or profiles.capture(entity))
-    record.reverse_customized = record.reverse_customized and true or false
+    if record.reverse_positions_customized == nil then
+      record.reverse_positions_customized = not profiles.reverse_positions_match_derived(record)
+    end
+    record.reverse_customized = nil
     record.open_players = record.open_players or {}
     record.open_count = record.open_count or 0
     record.edit_target = record.edit_target or nil
@@ -64,7 +67,7 @@ function state.ensure(entity, tick)
     },
     forward = forward,
     reverse = profiles.new_reverse_from_forward(forward),
-    reverse_customized = false,
+    reverse_positions_customized = false,
     direction = constants.direction_forward,
     phase = constants.phase_forward,
     reverse_probe_reason = nil,
@@ -74,6 +77,7 @@ function state.ensure(entity, tick)
     next_probe_tick = 0,
     open_players = {},
     open_count = 0,
+    editor_player_index = nil,
     edit_target = nil,
     editor_was_disabled_by_script = nil
   }

@@ -652,6 +652,16 @@ when Smart Inserters is installed.
 
 Exact coexistence layout is an implementation detail.
 
+### 17.5 Multiplayer edit ownership
+
+Only one player may edit a given two-way inserter's logical profiles at a time.
+
+If another player is already editing that inserter, Two-Way Inserter must not
+apply a different profile to the physical inserter for the second player. The
+second player may be notified that the inserter is already being edited, and
+the inserter GUI may be closed for that player to avoid accidental profile
+mixing.
+
 ---
 
 ## 18. GUI-open behavior
@@ -669,6 +679,12 @@ Preferred behavior:
 7. Save the currently selected profile when the edit target changes or the GUI closes.
 8. Restore the forward profile and the pre-edit script-disabled state when editing ends.
 9. Resume normal two-way operation after the GUI is closed.
+
+If the GUI edit session ends abnormally, for example due to player disconnect,
+death, controller change, player removal, or a stale `LuaPlayer.opened` state,
+Two-Way Inserter must clean up the editor ownership, restore the forward
+profile, restore the pre-edit script-disabled state, and allow normal two-way
+operation to resume.
 
 This keeps the rule:
 

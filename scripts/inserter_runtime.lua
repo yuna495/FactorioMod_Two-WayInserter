@@ -167,13 +167,21 @@ local function reverse_probe_timeout(record)
 end
 
 local function has_active_editor(record)
-  for player_index in pairs(record.open_players or {}) do
-    local player_state = storage.twi.players[player_index]
-    if player_state and player_state.unit_number == record.unit_number then
-      return true
-    end
+  local player_index = record.editor_player_index
+  if not player_index then return false end
+
+  local player = game.get_player(player_index)
+  if not (player and player.connected) then return false end
+
+  local player_state = storage.twi.players[player_index]
+  if not (player_state and player_state.unit_number == record.unit_number) then
+    return false
   end
-  return false
+
+  local ok, opened = pcall(function()
+    return player.opened
+  end)
+  return ok and opened and opened.valid and opened == record.entity
 end
 
 local function tick_record(record, tick)
@@ -189,6 +197,7 @@ local function tick_record(record, tick)
     if not has_active_editor(record) then
       record.open_players = {}
       record.open_count = 0
+      record.editor_player_index = nil
       runtime.end_gui_edit(record, tick)
     end
     return
@@ -264,7 +273,6 @@ function runtime.on_entity_cloned(source, destination)
   record.forward.filter_mode = source_record.forward.filter_mode
   record.forward.filters = profiles.copy_filters(source_record.forward.filters)
   record.forward.stack_size_override = source_record.forward.stack_size_override
-  record.reverse_customized = source_record.reverse_customized
   record.reverse = {
     direction = source_record.reverse.direction or profiles.opposite_direction(record.primary.direction),
     pickup_position = profiles.copy_position(source_record.reverse.pickup_position),
@@ -274,6 +282,11 @@ function runtime.on_entity_cloned(source, destination)
     filters = profiles.copy_filters(source_record.reverse.filters),
     stack_size_override = source_record.reverse.stack_size_override
   }
+  if source_record.reverse_positions_customized ~= nil then
+    record.reverse_positions_customized = source_record.reverse_positions_customized
+  else
+    record.reverse_positions_customized = not profiles.reverse_positions_match_derived(record)
+  end
   profiles.sync_positions(record)
   record.direction = constants.direction_forward
   record.phase = constants.phase_forward

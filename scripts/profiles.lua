@@ -35,6 +35,15 @@ local function copy_filters(filters)
   return result
 end
 
+local function positions_equal(left, right)
+  local left_position = copy_position(left)
+  local right_position = copy_position(right)
+  if not left_position and not right_position then return true end
+  if not (left_position and right_position) then return false end
+  return math.abs(left_position.x - right_position.x) < 0.0001
+    and math.abs(left_position.y - right_position.y) < 0.0001
+end
+
 function profiles.copy_position(position)
   return copy_position(position)
 end
@@ -56,8 +65,38 @@ function profiles.copy_filters(filters)
 end
 
 function profiles.opposite_direction(direction)
-  if type(direction) ~= "number" then return direction end
-  return (direction + 4) % 8
+  if not (defines and defines.direction) then return direction end
+
+  local pairs_by_name = {
+    north = "south",
+    northnortheast = "southsouthwest",
+    northeast = "southwest",
+    eastnortheast = "westsouthwest",
+    east = "west",
+    eastsoutheast = "westnorthwest",
+    southeast = "northwest",
+    southsoutheast = "northnorthwest",
+    south = "north",
+    southsouthwest = "northnortheast",
+    southwest = "northeast",
+    westsouthwest = "eastnortheast",
+    west = "east",
+    westnorthwest = "eastsoutheast",
+    northwest = "southeast",
+    northnorthwest = "southsoutheast"
+  }
+
+  for from, to in pairs(pairs_by_name) do
+    if defines.direction[from] == direction then
+      return defines.direction[to] or direction
+    end
+  end
+
+  return direction
+end
+
+function profiles.positions_equal(left, right)
+  return positions_equal(left, right)
 end
 
 function profiles.has_held_item(entity)
@@ -177,7 +216,7 @@ function profiles.sync_positions(record)
   record.forward.direction = record.primary.direction
   record.forward.pickup_position = copy_position(record.primary.pickup_position)
   record.forward.drop_position = copy_position(record.primary.drop_position)
-  if not record.reverse_customized then
+  if not record.reverse_positions_customized then
     profiles.derive_reverse_positions(record)
   end
 end
@@ -197,8 +236,21 @@ end
 function profiles.capture_reverse(record)
   local entity = record.entity
   if not (entity and entity.valid) then return end
-  record.reverse = profiles.capture(entity)
-  record.reverse_customized = true
+  local captured = profiles.capture(entity)
+  local derived = profiles.new_reverse_from_forward(record.forward)
+  record.reverse = captured
+  record.reverse_positions_customized =
+    captured.direction ~= derived.direction
+    or not positions_equal(captured.pickup_position, derived.pickup_position)
+    or not positions_equal(captured.drop_position, derived.drop_position)
+end
+
+function profiles.reverse_positions_match_derived(record)
+  if not (record and record.forward and record.reverse) then return true end
+  local derived = profiles.new_reverse_from_forward(record.forward)
+  return record.reverse.direction == derived.direction
+    and positions_equal(record.reverse.pickup_position, derived.pickup_position)
+    and positions_equal(record.reverse.drop_position, derived.drop_position)
 end
 
 return profiles

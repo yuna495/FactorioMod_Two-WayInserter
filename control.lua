@@ -65,6 +65,18 @@ script.on_event(defines.events.on_gui_elem_changed, function(event)
   gui.on_elem_changed(event)
 end)
 
+local player_session_end_events = {
+  defines.events.on_pre_player_left_game,
+  defines.events.on_player_left_game,
+  defines.events.on_player_died,
+  defines.events.on_player_controller_changed,
+  defines.events.on_pre_player_removed
+}
+
+script.on_event(player_session_end_events, function(event)
+  gui.on_player_session_ended(event)
+end)
+
 script.on_nth_tick(1, function(event)
   runtime.on_tick(event.tick)
 end)

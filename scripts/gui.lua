@@ -24,28 +24,43 @@ local function read_player_state(player_index)
   return storage.twi.players[player_index]
 end
 
-local function remaining_edit_target(record)
-  for player_index in pairs(record.open_players or {}) do
-    local player_state = read_player_state(player_index)
-    if player_state and player_state.unit_number == record.unit_number then
-      return player_state.edit_target or constants.direction_forward
-    end
+local function is_player_opening_entity(player, entity)
+  if not (player and entity and entity.valid) then return false end
+  local ok, opened = pcall(function()
+    return player.opened
+  end)
+  return ok and opened and opened.valid and opened == entity
+end
+
+local function active_editor_player(record)
+  local player_index = record.editor_player_index
+  if not player_index then return nil end
+  local player = game.get_player(player_index)
+  if player and player.connected and is_player_opening_entity(player, record.entity) then
+    return player
   end
   return nil
 end
 
+local function cleanup_stale_editor(record, tick)
+  local player_index = record.editor_player_index
+  if not player_index then return end
+
+  runtime.save_profile(record, record.edit_target or constants.direction_forward)
+  storage.twi.players[player_index] = nil
+  record.open_players = {}
+  record.open_count = 0
+  record.editor_player_index = nil
+  runtime.end_gui_edit(record, tick)
+end
+
 local function finish_player_edit(record, player_index, tick)
+  if record.editor_player_index ~= player_index then return end
+
   record.open_players[player_index] = nil
   record.open_count = math.max((record.open_count or 1) - 1, 0)
-
-  local target = remaining_edit_target(record)
-  if target then
-    record.edit_target = target
-    runtime.apply_profile_for_edit(record, target)
-    runtime.refresh_gui_pause(record)
-  else
-    runtime.end_gui_edit(record, tick)
-  end
+  record.editor_player_index = nil
+  runtime.end_gui_edit(record, tick)
 end
 
 local function find_child(parent, name)
@@ -162,12 +177,28 @@ function gui.on_opened(event)
   local record = runtime.ensure(event.entity, event.tick)
   if not record then return end
 
+  local editor = active_editor_player(record)
+  if record.editor_player_index and not editor then
+    cleanup_stale_editor(record, event.tick)
+    editor = nil
+  end
+
+  if editor and editor.index ~= player.index then
+    player.print({"two-way-inserter.editor-locked", editor.name})
+    pcall(function()
+      player.opened = nil
+    end)
+    destroy(player)
+    return
+  end
+
   storage.twi.players[player.index] = {
     unit_number = record.unit_number,
     edit_target = constants.direction_forward
   }
   record.open_players[player.index] = true
-  record.open_count = (record.open_count or 0) + 1
+  record.open_count = 1
+  record.editor_player_index = player.index
   record.edit_target = constants.direction_forward
 
   runtime.begin_gui_edit(record, event.tick)
@@ -240,6 +271,18 @@ function gui.on_text_changed(event)
 end
 
 function gui.on_elem_changed(event)
+end
+
+function gui.on_player_session_ended(event)
+  runtime.init_storage()
+  local player_state = storage.twi.players[event.player_index]
+  if not player_state then return end
+  local record = storage.twi.entities[player_state.unit_number]
+  if record then
+    runtime.save_profile(record, player_state.edit_target or constants.direction_forward)
+    finish_player_edit(record, event.player_index, event.tick)
+  end
+  storage.twi.players[event.player_index] = nil
 end
 
 return gui
