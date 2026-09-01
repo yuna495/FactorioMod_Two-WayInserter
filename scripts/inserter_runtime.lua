@@ -90,7 +90,7 @@ local function tick_record(record, tick)
   local held = profiles.has_held_item(entity)
 
   if record.open_count and record.open_count > 0 then
-    if not held then
+    if not held and (record.direction ~= constants.direction_forward or record.phase ~= constants.phase_forward) then
       apply_forward(record, tick)
     end
     return
