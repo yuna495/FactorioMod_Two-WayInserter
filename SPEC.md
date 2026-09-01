@@ -402,9 +402,45 @@ drop   = B
 Reverse:
 pickup = B
 drop   = A
+entity direction remains the permanent primary direction
 ```
 
 This keeps position configuration simple and works naturally with normal inserters.
+
+The persistent primary endpoint pair must not be overwritten while applying the
+temporary reverse profile. However, the physical inserter must still receive a
+runtime pickup/drop swap during reverse, because Factorio's inserter logic
+picks from `pickup_position` and drops to `drop_position`.
+
+When Smart Inserters or another arm-position mod configures pickup/drop
+coordinates, the reverse runtime positions must use the same coordinate
+configuration mirrored through the inserter center without flipping the
+physical inserter direction:
+
+```text
+Forward:
+pickup = configured pickup coordinate on A side
+drop   = configured drop coordinate on B side
+
+Reverse:
+pickup = mirrored configured pickup coordinate on B side
+drop   = mirrored configured drop coordinate on A side
+```
+
+For example, if Forward is configured as:
+
+```text
+A belt far lane -> B belt near lane
+```
+
+then Reverse should be:
+
+```text
+B belt far lane -> A belt near lane
+```
+
+The mod must not blindly swap the full absolute pickup/drop positions when
+doing so would turn the Forward drop setting into the Reverse pickup setting.
 
 ---
 
@@ -427,7 +463,9 @@ Forward:
 A -> B
 
 Reverse:
-B -> A
+B -> A using the same configured endpoints
+with the physical runtime pickup/drop coordinates mirrored around the inserter
+center
 ```
 
 ### 15.2 Direction-specific Smart Inserters positions
@@ -450,7 +488,11 @@ Because Smart Inserters currently edits the active physical inserter through its
 
 Therefore the initial compatibility rule is:
 
-> Smart Inserters position settings are shared between forward and reverse and are reversed as a pair.
+> Smart Inserters position settings are shared as one persistent endpoint pair.
+> Reverse uses that same pair in the opposite logical direction, temporarily
+> applying mirrored runtime pickup/drop coordinates without redefining the
+> stored primary direction, changing the physical direction, or exchanging the
+> pickup and drop settings.
 
 ### 15.3 Optional event integration
 

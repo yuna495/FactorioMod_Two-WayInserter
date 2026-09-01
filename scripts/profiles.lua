@@ -5,6 +5,16 @@ local function copy_position(position)
   return { x = position.x or position[1], y = position.y or position[2] }
 end
 
+local function mirror_position(position, center)
+  local copied = copy_position(position)
+  local copied_center = copy_position(center)
+  if not (copied and copied_center) then return nil end
+  return {
+    x = (copied_center.x * 2) - copied.x,
+    y = (copied_center.y * 2) - copied.y
+  }
+end
+
 local function copy_filter(filter)
   if type(filter) == "string" then
     return { name = filter }
@@ -27,6 +37,14 @@ end
 
 function profiles.copy_position(position)
   return copy_position(position)
+end
+
+function profiles.reverse_pickup_position(forward)
+  return mirror_position(forward.pickup_position, forward.base_position)
+end
+
+function profiles.reverse_drop_position(forward)
+  return mirror_position(forward.drop_position, forward.base_position)
 end
 
 function profiles.copy_filter(filter)
@@ -56,6 +74,8 @@ end
 
 function profiles.capture(entity)
   local profile = {
+    base_position = copy_position(entity.position),
+    direction = entity.direction,
     pickup_position = copy_position(entity.pickup_position),
     drop_position = copy_position(entity.drop_position),
     use_filters = false,
@@ -88,8 +108,9 @@ end
 
 function profiles.new_reverse_from_forward(forward)
   return {
-    pickup_position = copy_position(forward.drop_position),
-    drop_position = copy_position(forward.pickup_position),
+    direction = forward.direction,
+    pickup_position = profiles.reverse_pickup_position(forward),
+    drop_position = profiles.reverse_drop_position(forward),
     use_filters = false,
     filter_mode = forward.filter_mode or "whitelist",
     filters = {},
@@ -98,6 +119,12 @@ function profiles.new_reverse_from_forward(forward)
 end
 
 function profiles.apply(entity, profile)
+  if profile.direction then
+    pcall(function()
+      entity.direction = profile.direction
+    end)
+  end
+
   if profile.pickup_position then
     pcall(function()
       entity.pickup_position = copy_position(profile.pickup_position)
@@ -131,16 +158,25 @@ function profiles.apply(entity, profile)
 end
 
 function profiles.sync_positions(record)
+  if not record.primary.direction then
+    record.primary.direction = record.forward.direction or (record.entity and record.entity.valid and record.entity.direction) or defines.direction.north
+  end
+  record.primary.base_position = record.primary.base_position or (record.entity and record.entity.valid and copy_position(record.entity.position))
+  record.forward.base_position = copy_position(record.primary.base_position)
+  record.forward.direction = record.primary.direction
   record.forward.pickup_position = copy_position(record.primary.pickup_position)
   record.forward.drop_position = copy_position(record.primary.drop_position)
-  record.reverse.pickup_position = copy_position(record.primary.drop_position)
-  record.reverse.drop_position = copy_position(record.primary.pickup_position)
+  record.reverse.direction = record.primary.direction
+  record.reverse.pickup_position = profiles.reverse_pickup_position(record.forward)
+  record.reverse.drop_position = profiles.reverse_drop_position(record.forward)
 end
 
 function profiles.capture_forward(record)
   local entity = record.entity
   if not (entity and entity.valid) then return end
   local captured = profiles.capture(entity)
+  record.primary.base_position = copy_position(captured.base_position)
+  record.primary.direction = captured.direction
   record.primary.pickup_position = copy_position(captured.pickup_position)
   record.primary.drop_position = copy_position(captured.drop_position)
   record.forward = captured

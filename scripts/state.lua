@@ -35,6 +35,9 @@ function state.ensure(entity, tick)
   local record = storage.twi.entities[unit_number]
   if record then
     record.entity = entity
+    record.primary = record.primary or {}
+    record.primary.base_position = record.primary.base_position or profiles.copy_position(entity.position)
+    record.primary.direction = record.primary.direction or record.forward and record.forward.direction or entity.direction
     register_destroyed(entity, record)
     return record
   end
@@ -45,6 +48,8 @@ function state.ensure(entity, tick)
     entity = entity,
     enabled = false,
     primary = {
+      base_position = profiles.copy_position(forward.base_position),
+      direction = forward.direction,
       pickup_position = profiles.copy_position(forward.pickup_position),
       drop_position = profiles.copy_position(forward.drop_position)
     },

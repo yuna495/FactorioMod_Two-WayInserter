@@ -156,6 +156,8 @@ function runtime.on_entity_cloned(source, destination)
   local record = state.ensure(destination, game.tick)
   record.enabled = source_record.enabled
   record.primary = {
+    base_position = profiles.copy_position(destination.position),
+    direction = source_record.primary.direction or source_record.forward.direction or source.direction,
     pickup_position = profiles.copy_position(source_record.primary.pickup_position),
     drop_position = profiles.copy_position(source_record.primary.drop_position)
   }
@@ -165,6 +167,7 @@ function runtime.on_entity_cloned(source, destination)
   record.forward.filters = profiles.copy_filters(source_record.forward.filters)
   record.forward.stack_size_override = source_record.forward.stack_size_override
   record.reverse = {
+    direction = record.primary.direction,
     pickup_position = profiles.copy_position(source_record.reverse.pickup_position),
     drop_position = profiles.copy_position(source_record.reverse.drop_position),
     use_filters = source_record.reverse.use_filters,
