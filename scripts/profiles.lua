@@ -44,6 +44,43 @@ local function positions_equal(left, right)
     and math.abs(left_position.y - right_position.y) < 0.0001
 end
 
+local direction_names = {
+  "north",
+  "northnortheast",
+  "northeast",
+  "eastnortheast",
+  "east",
+  "eastsoutheast",
+  "southeast",
+  "southsoutheast",
+  "south",
+  "southsouthwest",
+  "southwest",
+  "westsouthwest",
+  "west",
+  "westnorthwest",
+  "northwest",
+  "northnorthwest"
+}
+
+local direction_indexes = {}
+local directions_by_index = {}
+local opposite_directions = {}
+
+if defines and defines.direction then
+  for index, name in ipairs(direction_names) do
+    local direction = defines.direction[name]
+    if direction ~= nil then
+      direction_indexes[direction] = index - 1
+      directions_by_index[index - 1] = direction
+    end
+  end
+
+  for direction, index in pairs(direction_indexes) do
+    opposite_directions[direction] = directions_by_index[(index + 8) % 16]
+  end
+end
+
 function profiles.copy_position(position)
   return copy_position(position)
 end
@@ -65,38 +102,85 @@ function profiles.copy_filters(filters)
 end
 
 function profiles.opposite_direction(direction)
-  if not (defines and defines.direction) then return direction end
-
-  local pairs_by_name = {
-    north = "south",
-    northnortheast = "southsouthwest",
-    northeast = "southwest",
-    eastnortheast = "westsouthwest",
-    east = "west",
-    eastsoutheast = "westnorthwest",
-    southeast = "northwest",
-    southsoutheast = "northnorthwest",
-    south = "north",
-    southsouthwest = "northnortheast",
-    southwest = "northeast",
-    westsouthwest = "eastnortheast",
-    west = "east",
-    westnorthwest = "eastsoutheast",
-    northwest = "southeast",
-    northnorthwest = "southsoutheast"
-  }
-
-  for from, to in pairs(pairs_by_name) do
-    if defines.direction[from] == direction then
-      return defines.direction[to] or direction
-    end
-  end
-
-  return direction
+  return opposite_directions[direction] or direction
 end
 
 function profiles.positions_equal(left, right)
   return positions_equal(left, right)
+end
+
+function profiles.direction_delta(from_direction, to_direction)
+  local from_index = direction_indexes[from_direction]
+  local to_index = direction_indexes[to_direction]
+  if from_index == nil or to_index == nil then return nil end
+  return (to_index - from_index) % 16
+end
+
+function profiles.rotate_direction(direction, delta)
+  local index = direction_indexes[direction]
+  if index == nil or delta == nil then return direction end
+  return directions_by_index[(index + delta) % 16] or direction
+end
+
+function profiles.rotate_position(position, center, delta)
+  local copied = copy_position(position)
+  local copied_center = copy_position(center)
+  if not (copied and copied_center and delta) then return copied end
+
+  local dx = copied.x - copied_center.x
+  local dy = copied.y - copied_center.y
+  local step = delta % 16
+
+  if step == 0 then
+    return { x = copied.x, y = copied.y }
+  elseif step == 4 then
+    return { x = copied_center.x - dy, y = copied_center.y + dx }
+  elseif step == 8 then
+    return { x = copied_center.x - dx, y = copied_center.y - dy }
+  elseif step == 12 then
+    return { x = copied_center.x + dy, y = copied_center.y - dx }
+  end
+
+  local angle = step * math.pi / 8
+  local cos_angle = math.cos(angle)
+  local sin_angle = math.sin(angle)
+  return {
+    x = copied_center.x + dx * cos_angle - dy * sin_angle,
+    y = copied_center.y + dx * sin_angle + dy * cos_angle
+  }
+end
+
+function profiles.rotate_profile(profile, center, delta)
+  if not profile then return end
+  profile.direction = profiles.rotate_direction(profile.direction, delta)
+  profile.base_position = copy_position(center or profile.base_position)
+  profile.pickup_position = profiles.rotate_position(profile.pickup_position, center, delta)
+  profile.drop_position = profiles.rotate_position(profile.drop_position, center, delta)
+end
+
+function profiles.rotate_record(record, from_direction, to_direction)
+  if not (record and record.forward and record.reverse) then return false end
+  local delta = profiles.direction_delta(from_direction, to_direction)
+  if delta == nil then return false end
+
+  local center = record.primary and record.primary.base_position
+    or record.forward.base_position
+    or (record.entity and record.entity.valid and copy_position(record.entity.position))
+  if not center then return false end
+
+  profiles.rotate_profile(record.forward, center, delta)
+  record.primary = record.primary or {}
+  record.primary.base_position = copy_position(center)
+  record.primary.direction = record.forward.direction
+  record.primary.pickup_position = copy_position(record.forward.pickup_position)
+  record.primary.drop_position = copy_position(record.forward.drop_position)
+
+  if record.reverse_positions_customized then
+    profiles.rotate_profile(record.reverse, center, delta)
+  end
+
+  profiles.sync_positions(record)
+  return true
 end
 
 function profiles.has_held_item(entity)

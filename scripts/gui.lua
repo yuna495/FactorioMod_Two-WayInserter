@@ -29,7 +29,12 @@ local function is_player_opening_entity(player, entity)
   local ok, opened = pcall(function()
     return player.opened
   end)
-  return ok and opened and opened.valid and opened == entity
+  if not (ok and opened) then return false end
+
+  local valid_ok, valid = pcall(function()
+    return opened.valid
+  end)
+  return valid_ok and valid and opened == entity
 end
 
 local function active_editor_player(record)
@@ -46,7 +51,6 @@ local function cleanup_stale_editor(record, tick)
   local player_index = record.editor_player_index
   if not player_index then return end
 
-  runtime.save_profile(record, record.edit_target or constants.direction_forward)
   storage.twi.players[player_index] = nil
   record.open_players = {}
   record.open_count = 0
@@ -279,7 +283,10 @@ function gui.on_player_session_ended(event)
   if not player_state then return end
   local record = storage.twi.entities[player_state.unit_number]
   if record then
-    runtime.save_profile(record, player_state.edit_target or constants.direction_forward)
+    local player = game.get_player(event.player_index)
+    if is_player_opening_entity(player, record.entity) then
+      runtime.save_profile(record, player_state.edit_target or constants.direction_forward)
+    end
     finish_player_edit(record, event.player_index, event.tick)
   end
   storage.twi.players[event.player_index] = nil

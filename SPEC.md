@@ -452,6 +452,25 @@ B belt far lane -> A belt near lane
 The mod must not blindly swap the full absolute pickup/drop positions when
 doing so would turn the Forward drop setting into the Reverse pickup setting.
 
+### 14.3 Player rotation
+
+When a player rotates a two-way inserter, Forward remains the primary profile.
+
+Two-Way Inserter must calculate the rotation delta from the active physical
+entity's previous direction and new direction, then apply that same delta to
+both stored logical profiles:
+
+- Forward direction and pickup/drop positions
+- Reverse direction and pickup/drop positions, when reverse positions have
+  been explicitly customized
+
+If reverse positions have not been explicitly customized, the reverse
+pickup/drop positions remain derived from the rotated Forward profile.
+
+This rule applies even when the physical inserter was temporarily displaying or
+operating in the Reverse profile. Rotation must not reinterpret Reverse as the
+new Primary profile.
+
 ---
 
 ## 15. Smart Inserters compatibility
@@ -806,7 +825,24 @@ If a compatibility exclusion system becomes necessary, add one rather than forci
 
 ## 24. Blueprint, copy/paste, upgrade, clone, and migration behavior
 
-These behaviors are important but are **not yet fully specified**.
+Initial releases do not provide dedicated blueprint or entity-settings
+copy/paste persistence for Two-Way-specific state.
+
+The following Two-Way-specific state is not encoded into blueprints or normal
+Factorio entity settings in the initial release:
+
+- Two-way enabled/disabled state
+- Reverse profile
+- Reverse filters
+- Reverse stack size
+- Reverse independent pickup/drop positions
+
+This may be added later if practical demand justifies it.
+
+Normal Factorio blueprint and copy/paste behavior should not be deliberately
+blocked by Two-Way Inserter.
+
+The broader behavior remains important but is not fully specified.
 
 Future implementation must determine how to preserve:
 

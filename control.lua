@@ -34,7 +34,7 @@ script.on_event(defines.events.on_entity_cloned, function(event)
 end)
 
 script.on_event(defines.events.on_player_rotated_entity, function(event)
-  runtime.on_external_arm_changed({ entity = event.entity })
+  runtime.on_player_rotated_entity(event)
 end)
 
 script.on_event(defines.events.on_gui_opened, function(event)

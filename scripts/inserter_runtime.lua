@@ -181,7 +181,12 @@ local function has_active_editor(record)
   local ok, opened = pcall(function()
     return player.opened
   end)
-  return ok and opened and opened.valid and opened == record.entity
+  if not (ok and opened) then return false end
+
+  local valid_ok, valid = pcall(function()
+    return opened.valid
+  end)
+  return valid_ok and valid and opened == record.entity
 end
 
 local function tick_record(record, tick)
@@ -195,6 +200,10 @@ local function tick_record(record, tick)
 
   if record.open_count and record.open_count > 0 then
     if not has_active_editor(record) then
+      local player_index = record.editor_player_index
+      if player_index then
+        storage.twi.players[player_index] = nil
+      end
       record.open_players = {}
       record.open_count = 0
       record.editor_player_index = nil
@@ -292,6 +301,22 @@ function runtime.on_entity_cloned(source, destination)
   record.phase = constants.phase_forward
   state.set_enabled(record, record.enabled)
   runtime.normalize_forward(record, game.tick)
+end
+
+function runtime.on_player_rotated_entity(event)
+  state.init()
+  local entity = event and event.entity
+  if not state.is_inserter(entity) then return end
+  local record = storage.twi.entities[entity.unit_number]
+  if not record then return end
+
+  if profiles.rotate_record(record, event.previous_direction, entity.direction) then
+    record.reverse_probe_reason = nil
+    record.reverse_started_tick = 0
+    record.last_held_item = profiles.has_held_item(entity)
+    state.schedule_next_probe(record, event.tick or game.tick)
+    notify_arm_changed(record)
+  end
 end
 
 function runtime.on_external_arm_changed(event)
