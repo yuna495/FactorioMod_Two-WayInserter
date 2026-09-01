@@ -407,21 +407,25 @@ drop   = B
 Reverse:
 pickup = B
 drop   = A
-entity direction remains the permanent primary direction
+entity direction = reverse-facing runtime direction
 ```
 
 This keeps position configuration simple and works naturally with normal inserters.
 
 The persistent primary endpoint pair must not be overwritten while applying or
 editing the temporary reverse profile. However, the physical inserter must
-still receive runtime reverse pickup/drop positions during reverse, because
-Factorio's inserter logic picks from `pickup_position` and drops to
-`drop_position`.
+still receive the active profile's runtime direction, pickup/drop positions,
+filters, and other supported settings, because Factorio's inserter logic uses
+the physical entity state.
+
+The stored primary direction remains the permanent source of truth for Forward.
+Temporarily applying the reverse-facing physical direction must not redefine
+the stored primary direction.
 
 When Smart Inserters or another arm-position mod configures pickup/drop
 coordinates before the reverse profile has been customized, the reverse
 runtime positions must use the same coordinate configuration mirrored through
-the inserter center without flipping the physical inserter direction:
+the inserter center and the reverse runtime direction:
 
 ```text
 Forward:
@@ -656,11 +660,15 @@ Because the physical inserter's active runtime settings may change when switchin
 
 Preferred behavior:
 
-1. When a player opens a two-way inserter GUI, normalize the inserter to the forward profile.
-2. Treat the vanilla GUI and compatible position GUIs as editors for the selected edit target.
-3. Suspend reverse probing / reverse switching while the relevant inserter GUI is open.
-4. Save the currently selected profile when the edit target changes or the GUI closes.
-5. Resume normal two-way operation after the GUI is closed.
+1. When a player opens a two-way inserter GUI, normalize the inserter to the forward profile when safe.
+2. If two-way mode is enabled, temporarily deactivate the physical inserter with the Factorio script-disable flag while it is being edited.
+3. Treat the vanilla GUI and compatible position GUIs as editors for the selected edit target.
+4. When the edit target is Forward, apply the stored forward-facing profile to the physical inserter.
+5. When the edit target is Reverse, apply the stored reverse-facing profile to the physical inserter so the visible direction matches the profile being edited.
+6. Suspend reverse probing / reverse switching while the relevant inserter GUI is open.
+7. Save the currently selected profile when the edit target changes or the GUI closes.
+8. Restore the forward profile and the pre-edit script-disabled state when editing ends.
+9. Resume normal two-way operation after the GUI is closed.
 
 This keeps the rule:
 
@@ -711,6 +719,22 @@ At minimum:
 - Profile changes should occur at well-defined arm/transfer boundaries.
 
 Exact event/state detection should be determined during implementation and testing.
+
+### 20.1 GUI editing exception
+
+While a two-way inserter is open for GUI editing and has been temporarily
+disabled by script, the player must be able to switch the visible edit target
+between Forward and Reverse even if the inserter is currently holding an item.
+
+In this editor-only state, Two-Way Inserter may apply and capture profile
+settings while an item is held, because the inserter is not allowed to continue
+transporting until the GUI edit session ends. This exception exists to keep
+Forward and Reverse settings accessible in the same way a normal inserter can
+still be rotated while holding an item.
+
+Automatic runtime profile switching outside GUI editing should remain
+conservative and avoid changing profiles while an item is held unless the
+specific transition is known to be safe.
 
 ---
 
@@ -798,7 +822,7 @@ The stored configuration is the source of truth for:
 - Which direction is primary
 - Forward profile
 - Reverse profile
-- Shared endpoint positions
+- Direction-specific pickup/drop positions
 - Current mode/state as needed
 
 A temporary reverse state must never overwrite the definition of the primary direction.

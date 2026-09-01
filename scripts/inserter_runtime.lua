@@ -5,6 +5,26 @@ local smart_inserters = require("scripts.compatibility.smart_inserters")
 
 local runtime = {}
 
+local function read_disabled_by_script(entity)
+  local ok, disabled = pcall(function()
+    return entity.disabled_by_script
+  end)
+  if ok then return disabled end
+  return false
+end
+
+local function write_disabled_by_script(entity, disabled)
+  pcall(function()
+    entity.disabled_by_script = disabled and true or false
+  end)
+end
+
+local function notify_arm_changed(record)
+  record.suppress_external_arm_changed = true
+  smart_inserters.notify_arm_changed(record.entity)
+  record.suppress_external_arm_changed = nil
+end
+
 function runtime.init_storage()
   state.init()
 end
@@ -42,7 +62,7 @@ local function apply_forward(record, tick)
   record.reverse_started_tick = 0
   record.last_held_item = profiles.has_held_item(record.entity)
   state.schedule_next_probe(record, tick)
-  smart_inserters.notify_arm_changed(record.entity)
+  notify_arm_changed(record)
 end
 
 function runtime.normalize_forward(record, tick)
@@ -63,7 +83,6 @@ end
 
 function runtime.save_profile(record, target)
   if not (record and record.entity and record.entity.valid) then return end
-  if profiles.has_held_item(record.entity) then return end
   if target == constants.direction_reverse then
     profiles.capture_reverse(record)
   else
@@ -73,7 +92,6 @@ end
 
 function runtime.apply_profile_for_edit(record, target)
   if not (record and record.entity and record.entity.valid) then return false end
-  if profiles.has_held_item(record.entity) then return false end
   profiles.sync_positions(record)
   record.edit_target = target
   if target == constants.direction_reverse then
@@ -85,10 +103,45 @@ function runtime.apply_profile_for_edit(record, target)
     record.direction = constants.direction_forward
     record.phase = constants.phase_forward
   end
-  smart_inserters.notify_arm_changed(record.entity)
   record.reverse_probe_reason = nil
   record.reverse_started_tick = 0
   record.last_held_item = profiles.has_held_item(record.entity)
+  if record.open_count and record.open_count > 0 and record.enabled then
+    write_disabled_by_script(record.entity, true)
+  end
+  notify_arm_changed(record)
+  return true
+end
+
+function runtime.begin_gui_edit(record, tick)
+  if not (record and record.entity and record.entity.valid) then return false end
+  if (record.open_count or 0) <= 1 then
+    record.editor_was_disabled_by_script = read_disabled_by_script(record.entity)
+  end
+  if record.enabled then
+    write_disabled_by_script(record.entity, true)
+  end
+  return runtime.apply_profile_for_edit(record, constants.direction_forward)
+end
+
+function runtime.refresh_gui_pause(record)
+  if not (record and record.entity and record.entity.valid) then return false end
+  if record.enabled then
+    write_disabled_by_script(record.entity, true)
+  elseif record.editor_was_disabled_by_script ~= nil then
+    write_disabled_by_script(record.entity, record.editor_was_disabled_by_script)
+  end
+  return true
+end
+
+function runtime.end_gui_edit(record, tick)
+  if not (record and record.entity and record.entity.valid) then return false end
+  runtime.apply_profile_for_edit(record, constants.direction_forward)
+  record.edit_target = nil
+  if record.editor_was_disabled_by_script ~= nil then
+    write_disabled_by_script(record.entity, record.editor_was_disabled_by_script)
+    record.editor_was_disabled_by_script = nil
+  end
   return true
 end
 
@@ -113,6 +166,16 @@ local function reverse_probe_timeout(record)
   return constants.idle_reverse_probe_timeout_ticks
 end
 
+local function has_active_editor(record)
+  for player_index in pairs(record.open_players or {}) do
+    local player_state = storage.twi.players[player_index]
+    if player_state and player_state.unit_number == record.unit_number then
+      return true
+    end
+  end
+  return false
+end
+
 local function tick_record(record, tick)
   local entity = record.entity
   if not (entity and entity.valid) then
@@ -123,6 +186,11 @@ local function tick_record(record, tick)
   local held = profiles.has_held_item(entity)
 
   if record.open_count and record.open_count > 0 then
+    if not has_active_editor(record) then
+      record.open_players = {}
+      record.open_count = 0
+      runtime.end_gui_edit(record, tick)
+    end
     return
   end
 
@@ -198,7 +266,7 @@ function runtime.on_entity_cloned(source, destination)
   record.forward.stack_size_override = source_record.forward.stack_size_override
   record.reverse_customized = source_record.reverse_customized
   record.reverse = {
-    direction = record.primary.direction,
+    direction = source_record.reverse.direction or profiles.opposite_direction(record.primary.direction),
     pickup_position = profiles.copy_position(source_record.reverse.pickup_position),
     drop_position = profiles.copy_position(source_record.reverse.drop_position),
     use_filters = source_record.reverse.use_filters,
@@ -219,12 +287,12 @@ function runtime.on_external_arm_changed(event)
   if not state.is_inserter(entity) then return end
   local record = storage.twi.entities[entity.unit_number]
   if not record then return end
-
-  if profiles.has_held_item(entity) then return end
+  if record.suppress_external_arm_changed then return end
 
   if record.open_count and record.open_count > 0 then
     runtime.save_profile(record, record.edit_target or constants.direction_forward)
   elseif record.direction == constants.direction_forward then
+    if profiles.has_held_item(entity) then return end
     profiles.capture_forward(record)
   end
 end

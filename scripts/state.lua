@@ -43,6 +43,10 @@ function state.ensure(entity, tick)
     record.open_players = record.open_players or {}
     record.open_count = record.open_count or 0
     record.edit_target = record.edit_target or nil
+    if record.editor_was_disabled_by_script == nil and record.editor_was_active ~= nil then
+      record.editor_was_disabled_by_script = not record.editor_was_active
+      record.editor_was_active = nil
+    end
     register_destroyed(entity, record)
     return record
   end
@@ -70,7 +74,8 @@ function state.ensure(entity, tick)
     next_probe_tick = 0,
     open_players = {},
     open_count = 0,
-    edit_target = nil
+    edit_target = nil,
+    editor_was_disabled_by_script = nil
   }
   state.schedule_next_probe(record, tick or game.tick)
   storage.twi.entities[unit_number] = record

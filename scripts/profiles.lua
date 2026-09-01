@@ -55,6 +55,11 @@ function profiles.copy_filters(filters)
   return copy_filters(filters)
 end
 
+function profiles.opposite_direction(direction)
+  if type(direction) ~= "number" then return direction end
+  return (direction + 4) % 8
+end
+
 function profiles.has_held_item(entity)
   local ok, stack = pcall(function()
     return entity.held_stack
@@ -108,7 +113,7 @@ end
 
 function profiles.new_reverse_from_forward(forward)
   return {
-    direction = forward.direction,
+    direction = profiles.opposite_direction(forward.direction),
     pickup_position = profiles.reverse_pickup_position(forward),
     drop_position = profiles.reverse_drop_position(forward),
     use_filters = false,
@@ -119,7 +124,7 @@ function profiles.new_reverse_from_forward(forward)
 end
 
 function profiles.derive_reverse_positions(record)
-  record.reverse.direction = record.forward.direction
+  record.reverse.direction = profiles.opposite_direction(record.forward.direction)
   record.reverse.pickup_position = profiles.reverse_pickup_position(record.forward)
   record.reverse.drop_position = profiles.reverse_drop_position(record.forward)
 end

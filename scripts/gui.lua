@@ -42,9 +42,9 @@ local function finish_player_edit(record, player_index, tick)
   if target then
     record.edit_target = target
     runtime.apply_profile_for_edit(record, target)
+    runtime.refresh_gui_pause(record)
   else
-    record.edit_target = nil
-    runtime.normalize_forward(record, tick)
+    runtime.end_gui_edit(record, tick)
   end
 end
 
@@ -170,7 +170,7 @@ function gui.on_opened(event)
   record.open_count = (record.open_count or 0) + 1
   record.edit_target = constants.direction_forward
 
-  runtime.normalize_forward(record, event.tick)
+  runtime.begin_gui_edit(record, event.tick)
   create(player, event.entity, record)
 end
 
@@ -204,6 +204,14 @@ function gui.on_checked_state_changed(event)
         end
         record.edit_target = constants.direction_forward
         set_selected_target(player, constants.direction_forward)
+      end
+      if record then
+        runtime.refresh_gui_pause(record)
+      end
+    else
+      local record = read_player_record(player.index)
+      if record then
+        runtime.refresh_gui_pause(record)
       end
     end
     refresh_enabled_state(frame, event.element.state)
