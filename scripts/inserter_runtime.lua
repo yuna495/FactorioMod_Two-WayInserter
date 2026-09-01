@@ -1,6 +1,7 @@
 local constants = require("scripts.constants")
 local profiles = require("scripts.profiles")
 local state = require("scripts.state")
+local smart_inserters = require("scripts.compatibility.smart_inserters")
 
 local runtime = {}
 
@@ -41,6 +42,7 @@ local function apply_forward(record, tick)
   record.reverse_started_tick = 0
   record.last_held_item = profiles.has_held_item(record.entity)
   state.schedule_next_probe(record, tick)
+  smart_inserters.notify_arm_changed(record.entity)
 end
 
 function runtime.normalize_forward(record, tick)
@@ -57,6 +59,37 @@ function runtime.save_forward(record)
   if record.direction == constants.direction_forward and not profiles.has_held_item(record.entity) then
     profiles.capture_forward(record)
   end
+end
+
+function runtime.save_profile(record, target)
+  if not (record and record.entity and record.entity.valid) then return end
+  if profiles.has_held_item(record.entity) then return end
+  if target == constants.direction_reverse then
+    profiles.capture_reverse(record)
+  else
+    profiles.capture_forward(record)
+  end
+end
+
+function runtime.apply_profile_for_edit(record, target)
+  if not (record and record.entity and record.entity.valid) then return false end
+  if profiles.has_held_item(record.entity) then return false end
+  profiles.sync_positions(record)
+  record.edit_target = target
+  if target == constants.direction_reverse then
+    profiles.apply(record.entity, record.reverse)
+    record.direction = constants.direction_reverse
+    record.phase = constants.phase_forward
+  else
+    profiles.apply(record.entity, record.forward)
+    record.direction = constants.direction_forward
+    record.phase = constants.phase_forward
+  end
+  smart_inserters.notify_arm_changed(record.entity)
+  record.reverse_probe_reason = nil
+  record.reverse_started_tick = 0
+  record.last_held_item = profiles.has_held_item(record.entity)
+  return true
 end
 
 local function start_reverse_probe(record, tick, reason)
@@ -90,9 +123,6 @@ local function tick_record(record, tick)
   local held = profiles.has_held_item(entity)
 
   if record.open_count and record.open_count > 0 then
-    if not held and (record.direction ~= constants.direction_forward or record.phase ~= constants.phase_forward) then
-      apply_forward(record, tick)
-    end
     return
   end
 
@@ -166,6 +196,7 @@ function runtime.on_entity_cloned(source, destination)
   record.forward.filter_mode = source_record.forward.filter_mode
   record.forward.filters = profiles.copy_filters(source_record.forward.filters)
   record.forward.stack_size_override = source_record.forward.stack_size_override
+  record.reverse_customized = source_record.reverse_customized
   record.reverse = {
     direction = record.primary.direction,
     pickup_position = profiles.copy_position(source_record.reverse.pickup_position),
@@ -188,7 +219,12 @@ function runtime.on_external_arm_changed(event)
   if not state.is_inserter(entity) then return end
   local record = storage.twi.entities[entity.unit_number]
   if not record then return end
-  if record.direction == constants.direction_forward and not profiles.has_held_item(entity) then
+
+  if profiles.has_held_item(entity) then return end
+
+  if record.open_count and record.open_count > 0 then
+    runtime.save_profile(record, record.edit_target or constants.direction_forward)
+  elseif record.direction == constants.direction_forward then
     profiles.capture_forward(record)
   end
 end

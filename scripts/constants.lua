@@ -16,10 +16,7 @@ constants.idle_reverse_probe_timeout_ticks = 60
 constants.gui = {
   root = "twi_reverse_root",
   enabled = "twi_enabled",
-  reverse_use_filters = "twi_reverse_use_filters",
-  reverse_filter_mode = "twi_reverse_filter_mode",
-  reverse_stack_size = "twi_reverse_stack_size",
-  reverse_filter_prefix = "twi_reverse_filter_"
+  edit_target = "twi_edit_target"
 }
 
 return constants

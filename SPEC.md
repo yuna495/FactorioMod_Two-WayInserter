@@ -310,7 +310,7 @@ Not every setting is guaranteed to be direction-specific in the first implementa
 
 ## 12. Reverse profile
 
-The reverse profile is stored by Two-Way Inserter and applied while the inserter operates:
+The reverse profile is stored by Two-Way Inserter and applied while the inserter operates or while the player explicitly edits the reverse profile:
 
 ```text
 B -> A
@@ -365,6 +365,11 @@ The reverse profile must not automatically inherit the forward filter configurat
 
 The same applies to stack size overrides: forward and reverse may use different values.
 
+In the editor GUI model, these direction-specific settings are edited through
+Factorio's normal inserter GUI after the player switches the Two-Way Inserter
+edit target to the desired direction. Two-Way Inserter stores the resulting
+physical inserter settings as the selected logical profile.
+
 ---
 
 ## 14. Position handling
@@ -383,7 +388,7 @@ so that pickup and drop positions can be changed at runtime.
 
 ### 14.2 Shared-position model
 
-The default and preferred compatibility model is that forward and reverse share the same two endpoint positions.
+The default runtime compatibility model is that forward and reverse are two stored profiles for the same physical inserter.
 
 If the configured endpoints are:
 
@@ -407,15 +412,16 @@ entity direction remains the permanent primary direction
 
 This keeps position configuration simple and works naturally with normal inserters.
 
-The persistent primary endpoint pair must not be overwritten while applying the
-temporary reverse profile. However, the physical inserter must still receive a
-runtime pickup/drop swap during reverse, because Factorio's inserter logic
-picks from `pickup_position` and drops to `drop_position`.
+The persistent primary endpoint pair must not be overwritten while applying or
+editing the temporary reverse profile. However, the physical inserter must
+still receive runtime reverse pickup/drop positions during reverse, because
+Factorio's inserter logic picks from `pickup_position` and drops to
+`drop_position`.
 
 When Smart Inserters or another arm-position mod configures pickup/drop
-coordinates, the reverse runtime positions must use the same coordinate
-configuration mirrored through the inserter center without flipping the
-physical inserter direction:
+coordinates before the reverse profile has been customized, the reverse
+runtime positions must use the same coordinate configuration mirrored through
+the inserter center without flipping the physical inserter direction:
 
 ```text
 Forward:
@@ -454,25 +460,35 @@ The current intended compatibility scope is limited.
 
 ### 15.1 Supported compatibility goal
 
-Smart Inserters may be used to configure the shared A/B arm positions.
+Smart Inserters may be used to configure whichever logical profile is currently
+selected in the Two-Way Inserter GUI.
 
-Two-Way Inserter then uses those same two configured positions in both directions:
+Before the reverse profile has been explicitly edited, Two-Way Inserter derives
+its reverse pickup/drop positions from the forward profile by mirroring the
+forward pickup and drop coordinates around the inserter center:
 
 ```text
 Forward:
 A -> B
 
-Reverse:
-B -> A using the same configured endpoints
-with the physical runtime pickup/drop coordinates mirrored around the inserter
-center
+Initial Reverse:
+B -> A using mirrored forward pickup/drop coordinates
 ```
+
+After the player switches the edit target to Reverse and edits Smart Inserters
+or vanilla inserter settings, the resulting physical inserter settings are
+stored as the reverse profile. Subsequent forward edits must not silently
+overwrite that customized reverse profile.
 
 ### 15.2 Direction-specific Smart Inserters positions
 
-Independent Smart Inserters positioning for forward and reverse is **not currently a requirement**.
+Independent Smart Inserters positioning for forward and reverse is supported by
+editing one logical profile at a time through the existing physical inserter.
+Two-Way Inserter does not duplicate Smart Inserters' GUI. Instead, its own
+relative GUI selects whether the real inserter is currently presenting the
+Forward or Reverse profile to vanilla and Smart Inserters GUIs.
 
-Example of a theoretically desirable but currently out-of-scope configuration:
+Example of a supported direction-specific configuration:
 
 ```text
 Forward:
@@ -482,21 +498,26 @@ Reverse:
 B outer belt lane -> A inner belt lane
 ```
 
-This would require separately editable forward and reverse pickup/drop positions.
-
-Because Smart Inserters currently edits the active physical inserter through its own GUI and is not intended to be directly modified by this project, maintaining two independently editable Smart Inserters position profiles would likely create fragile integration and excessive maintenance cost.
+This is implemented by saving the real inserter's current pickup/drop positions
+into the active profile when the player switches edit target or closes the GUI.
+Because Smart Inserters edits the active physical inserter through its own GUI,
+this lets Two-Way Inserter reuse Smart Inserters' normal controls without
+copying or modifying Smart Inserters internals.
 
 Therefore the initial compatibility rule is:
 
-> Smart Inserters position settings are shared as one persistent endpoint pair.
-> Reverse uses that same pair in the opposite logical direction, temporarily
-> applying mirrored runtime pickup/drop coordinates without redefining the
-> stored primary direction, changing the physical direction, or exchanging the
-> pickup and drop settings.
+> Smart Inserters position editing is reused by switching which logical profile
+> is applied to the physical inserter. Two-Way Inserter stores the Forward and
+> Reverse pickup/drop positions separately, while still keeping the original
+> Forward direction as the permanent primary direction.
 
 ### 15.3 Optional event integration
 
-If Smart Inserters exposes a stable public event notifying other mods that arm positions changed, Two-Way Inserter may listen to that event and update its stored shared A/B positions.
+If Smart Inserters exposes a stable public event notifying other mods that arm positions changed, Two-Way Inserter may listen to that event and update the stored profile that is currently being edited.
+
+Two-Way Inserter may also raise that public event after it applies a stored
+profile to the physical inserter, so Smart Inserters can refresh its own GUI
+from the actual inserter state.
 
 Compatibility must use public interfaces/events only.
 
@@ -555,14 +576,14 @@ The vanilla inserter GUI cannot be assumed to support direct modification, tab i
 The current GUI design therefore treats:
 
 ```text
-Vanilla inserter GUI = Forward profile
+Vanilla inserter GUI = current Two-Way edit target
 ```
 
-and adds a mod GUI for the reverse profile.
+and adds a minimal Two-Way Inserter relative GUI for selecting that edit target.
 
 ### 17.1 Forward settings
 
-The normal Factorio inserter GUI should continue to represent the primary:
+When the Two-Way edit target is Forward, the normal Factorio inserter GUI represents the primary:
 
 ```text
 A -> B
@@ -574,23 +595,23 @@ This keeps ordinary inserter setup familiar.
 
 ### 17.2 Reverse settings
 
+When the Two-Way edit target is Reverse, the same normal Factorio inserter GUI
+and any compatible inserter-position GUI, such as Smart Inserters, edit the
+reverse profile currently applied to the physical inserter.
+
 Two-Way Inserter should add a relative GUI associated with the opened inserter.
 
-The reverse GUI should contain the settings that may differ for:
+The Two-Way GUI should contain only the settings that cannot be represented by
+the currently applied physical inserter profile:
 
 ```text
-B -> A
+Two-Way mode enable/disable
+Edit target: Forward / Reverse
 ```
 
-such as:
-
-- Two-way mode enable/disable
-- Reverse filter enabled state
-- Reverse filter mode
-- Reverse filters
-- Reverse stack size override
-- Reverse circuit settings where implemented
-- Other direction-specific settings added later
+Filters, stack size override, pickup/drop positions, and Smart Inserters arm
+positions are edited through the vanilla inserter GUI or the other mod's
+existing GUI for whichever profile is currently selected.
 
 ### 17.3 Preferred visual concept
 
@@ -599,12 +620,12 @@ A possible layout is:
 ```text
 +----------------------+  +----------------------+
 | Vanilla Inserter GUI |  | Two-Way Inserter     |
-|                      |  | Reverse: B -> A      |
-| Forward: A -> B      |  |                      |
-|                      |  | Filters              |
-| Filters              |  | Stack size           |
-| Stack size           |  | Circuit / Green      |
-| Circuit / Red        |  | ...                  |
+|                      |  | Two-Way: ON/OFF      |
+| Selected profile     |  | Edit: Forward/Reverse|
+|                      |  |                      |
+| Filters              |  |                      |
+| Stack size           |  |                      |
+| Arm positions        |  |                      |
 +----------------------+  +----------------------+
 ```
 
@@ -636,15 +657,15 @@ Because the physical inserter's active runtime settings may change when switchin
 Preferred behavior:
 
 1. When a player opens a two-way inserter GUI, normalize the inserter to the forward profile.
-2. Treat the vanilla GUI as the forward-profile editor.
+2. Treat the vanilla GUI and compatible position GUIs as editors for the selected edit target.
 3. Suspend reverse probing / reverse switching while the relevant inserter GUI is open.
-4. Save forward changes as needed.
+4. Save the currently selected profile when the edit target changes or the GUI closes.
 5. Resume normal two-way operation after the GUI is closed.
 
 This keeps the rule:
 
 ```text
-Vanilla GUI = Forward profile
+Vanilla GUI = selected edit target
 ```
 
 stable and understandable.
@@ -791,7 +812,6 @@ The following are not required for the initial implementation:
 - Adding a completely new family of dedicated inserter prototypes
 - Reimplementing assembling machine recipes or inventory rules
 - Detecting "ingredient" versus "product" semantically
-- Maintaining independent Smart Inserters position profiles for forward and reverse
 - Modifying Smart Inserters source code
 - Depending on Smart Inserters internal/private implementation
 - Replacing the vanilla inserter GUI
@@ -800,9 +820,10 @@ The following are not required for the initial implementation:
 
 ---
 
-## 27. Desired future capability
+## 27. Desired advanced capability
 
-If future APIs or a stable external interface make it practical, an advanced mode could support fully independent arm positions:
+The selected-profile editor model is intended to make fully independent arm
+positions practical without duplicating another mod's GUI:
 
 ```text
 Forward:
@@ -812,9 +833,8 @@ Reverse:
 B outer lane -> A inner lane
 ```
 
-This would allow one inserter to cross-transfer between selected lanes in both directions.
-
-This is a desirable future extension, not a current requirement.
+This allows one inserter to cross-transfer between selected lanes in both
+directions by editing the Forward and Reverse profiles separately.
 
 ---
 
@@ -828,11 +848,11 @@ Recommended implementation order:
 4. Implement reverse probing after successful forward transfer.
 5. Implement periodic reverse probing while forward is idle.
 6. Add persistent forward/reverse logical profiles.
-7. Add independent reverse filters.
-8. Add independent reverse stack size override.
-9. Add the reverse configuration GUI.
+7. Add independent forward/reverse filter settings through selected-profile editing.
+8. Add independent forward/reverse stack size override through selected-profile editing.
+9. Add the minimal Two-Way GUI for mode enable/disable and selected-profile editing.
 10. Make GUI-open behavior normalize/suspend correctly.
-11. Add Smart Inserters shared-position compatibility through public interfaces only.
+11. Add Smart Inserters selected-profile compatibility through public interfaces only.
 12. Evaluate red-wire-forward / green-wire-reverse circuit behavior.
 13. Add blueprint/copy/upgrade persistence.
 14. Tune probe timing and UPS behavior.

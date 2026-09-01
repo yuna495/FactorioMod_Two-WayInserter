@@ -118,6 +118,12 @@ function profiles.new_reverse_from_forward(forward)
   }
 end
 
+function profiles.derive_reverse_positions(record)
+  record.reverse.direction = record.forward.direction
+  record.reverse.pickup_position = profiles.reverse_pickup_position(record.forward)
+  record.reverse.drop_position = profiles.reverse_drop_position(record.forward)
+end
+
 function profiles.apply(entity, profile)
   if profile.direction then
     pcall(function()
@@ -166,9 +172,9 @@ function profiles.sync_positions(record)
   record.forward.direction = record.primary.direction
   record.forward.pickup_position = copy_position(record.primary.pickup_position)
   record.forward.drop_position = copy_position(record.primary.drop_position)
-  record.reverse.direction = record.primary.direction
-  record.reverse.pickup_position = profiles.reverse_pickup_position(record.forward)
-  record.reverse.drop_position = profiles.reverse_drop_position(record.forward)
+  if not record.reverse_customized then
+    profiles.derive_reverse_positions(record)
+  end
 end
 
 function profiles.capture_forward(record)
@@ -181,6 +187,13 @@ function profiles.capture_forward(record)
   record.primary.drop_position = copy_position(captured.drop_position)
   record.forward = captured
   profiles.sync_positions(record)
+end
+
+function profiles.capture_reverse(record)
+  local entity = record.entity
+  if not (entity and entity.valid) then return end
+  record.reverse = profiles.capture(entity)
+  record.reverse_customized = true
 end
 
 return profiles

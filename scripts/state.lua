@@ -38,6 +38,11 @@ function state.ensure(entity, tick)
     record.primary = record.primary or {}
     record.primary.base_position = record.primary.base_position or profiles.copy_position(entity.position)
     record.primary.direction = record.primary.direction or record.forward and record.forward.direction or entity.direction
+    record.reverse = record.reverse or profiles.new_reverse_from_forward(record.forward or profiles.capture(entity))
+    record.reverse_customized = record.reverse_customized and true or false
+    record.open_players = record.open_players or {}
+    record.open_count = record.open_count or 0
+    record.edit_target = record.edit_target or nil
     register_destroyed(entity, record)
     return record
   end
@@ -55,6 +60,7 @@ function state.ensure(entity, tick)
     },
     forward = forward,
     reverse = profiles.new_reverse_from_forward(forward),
+    reverse_customized = false,
     direction = constants.direction_forward,
     phase = constants.phase_forward,
     reverse_probe_reason = nil,
@@ -63,7 +69,8 @@ function state.ensure(entity, tick)
     last_forward_activity_tick = tick or game.tick,
     next_probe_tick = 0,
     open_players = {},
-    open_count = 0
+    open_count = 0,
+    edit_target = nil
   }
   state.schedule_next_probe(record, tick or game.tick)
   storage.twi.entities[unit_number] = record
