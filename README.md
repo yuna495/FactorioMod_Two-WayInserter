@@ -25,7 +25,7 @@ No separate inserter item is added — the feature is applied to existing insert
 ## How it works
 
 <p align="center">
-  <img src="./MODポータル、README用/動作参考.gif" alt="Two-Way Inserter in action">
+  <img src="./MODportal/demo.gif" alt="Two-Way Inserter in action">
 </p>
 
 Suppose a chest supplies iron plates to an assembling machine:
@@ -86,7 +86,7 @@ The following settings can be stored separately for Forward and Reverse:
 ## Configuration
 
 <p align="center">
-  <img src="./MODポータル、README用/GUI設定箇所.png" alt="Two-Way Inserter configuration GUI">
+  <img src="./MODportal/GUI.png" alt="Two-Way Inserter configuration GUI">
 </p>
 
 Open an inserter normally.
