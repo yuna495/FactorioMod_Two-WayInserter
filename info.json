@@ -1,6 +1,6 @@
 {
   "name": "Two-WayInserter",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "title": "Two-Way Inserter",
   "author": "yuna495",
   "description": "Allows inserters to carry items in both directions, using both the forward and return trip.",
